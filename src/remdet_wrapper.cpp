@@ -8,7 +8,6 @@ namespace py = pybind11;
 template<typename T>
 void declare_functions(py::module &m) {
     m.def("remdet", [](py::array_t<T, py::array::c_style>& array, uint64_t period) {
-        py::gil_scoped_release release;
         auto buff = array.request();
         T *detpart = new T [period]();
         py::capsule free_when_done(detpart, [](void *f) {
@@ -24,7 +23,6 @@ void declare_functions(py::module &m) {
        }
     );
     m.def("getdet", [](py::array_t<T, py::array::c_style>& array, uint64_t period) {
-        py::gil_scoped_release release;
         auto buff = array.request();
         T *detpart = new T [period]();
         py::capsule free_when_done(detpart, [](void *f) {
