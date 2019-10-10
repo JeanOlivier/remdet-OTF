@@ -8,6 +8,7 @@ namespace py = pybind11;
 template<typename T>
 void declare_functions(py::module &m) {
     m.def("remdet", [](py::array_t<T, py::array::c_style>& array, uint64_t period) {
+        py::gil_scoped_release release;
         auto buff = array.request();
         T *detpart = new T [period]();
         py::capsule free_when_done(detpart, [](void *f) {
@@ -23,6 +24,7 @@ void declare_functions(py::module &m) {
        }
     );
     m.def("getdet", [](py::array_t<T, py::array::c_style>& array, uint64_t period) {
+        py::gil_scoped_release release;
         auto buff = array.request();
         T *detpart = new T [period]();
         py::capsule free_when_done(detpart, [](void *f) {
@@ -40,7 +42,7 @@ void declare_functions(py::module &m) {
 }
 
 PYBIND11_MODULE(remdet_wrapper, m) {
-    m.doc() = "pybind11 wrapper for acorrs.h"; // optional module docstring
+    m.doc() = "pybind11 wrapper for remdet"; // optional module docstring
     m.attr("the_answer") = 42;
     m.def("set_mpreal_precision", &set_mpreal_precision);
     m.def("set_num_threads", &omp_set_num_threads);
@@ -52,4 +54,3 @@ PYBIND11_MODULE(remdet_wrapper, m) {
     declare_functions<int16_t>(m);
     declare_functions<uint16_t>(m);
 }
-
