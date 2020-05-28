@@ -49,7 +49,7 @@ void declare_functions(py::module &m) {
 }
 
 PYBIND11_MODULE(remdet_wrapper, m) {
-    m.doc() = "pybind11 wrapper for acorrs.h"; // optional module docstring
+    m.doc() = "pybind11 wrapper for remdet"; // optional module docstring
     m.attr("the_answer") = 42;
     m.def("set_mpreal_precision", &set_mpreal_precision);
     m.def("set_num_threads", &omp_set_num_threads);
