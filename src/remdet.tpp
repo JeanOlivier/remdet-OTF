@@ -89,56 +89,39 @@ inline void detsub_func(T *buff, T *detpart, uint64_t period){
 }
 
 
-// SPECIALIZATIONS //
-// This didn't actually help at all; same performance.
-/*
-template <>
-inline void detsum_func(int16_t *buff, int64_t *detsum, uint64_t period){
-    // detsum is int64_t if T is int16_t
-    uint64_t *buff_64 = (uint64_t *) buff;
-    uint64_t tmp;
-    // Reading block of 64 bits
-    #pragma omp simd
-    for (uint64_t j=0; j<period/4; j++){
-        tmp = buff_64[j];
-        detsum[j*4+0] += (int16_t)(tmp       & 0xFFFF);
-        detsum[j*4+1] += (int16_t)(tmp >> 16 & 0xFFFF);
-        detsum[j*4+2] += (int16_t)(tmp >> 32 & 0xFFFF);
-        detsum[j*4+3] += (int16_t)(tmp >> 48 & 0xFFFF);
-    }
-    // Remainder
-    for (uint64_t j=period-period%4; j<period; j++){
-        detsum[j] += buff[j];
-    }
-}
-*/
+// This also didn't speed things up, but uses a single core for same performance!
+// This likely shows that we're memory-bandwidth limited. 
+//
+// A single-threaded version that uses AVX also for getdet could be more
+// "efficient" in terms of perf/watt, even if not faster at the wall clock.
 
-// This also didn't speed things up; kept as an AVX example.
-/*
+
 #include <immintrin.h>
 #include <smmintrin.h>
-template <>
-void deldet(int16_t *buffer, uint64_t size, int16_t *detpart, uint64_t period) {
-    if (not period%16){ // If period is a multiple of 16
-        #pragma omp parallel
-        {
-            manage_thread_affinity();
-            #pragma omp for
-            for (uint64_t i = 0; i < size; i+=16) {
-                // load 256-bit chunks of each array
-                __m256i first_values = _mm256_load_si256((__m256i*) &buffer[i]);
-                __m256i second_values = _mm256_load_si256((__m256i*) &detpart[i%period]);
 
-                // subs each pair of 16-bit integers in the 128-bit chunks
-                first_values = _mm256_sub_epi16(first_values, second_values);
-                
-                // store 256-bit chunk to first array
-                _mm256_store_si256((__m256i*) &buffer[i], first_values);
-            }
+template<>
+void deldet(int16_t *buffer, uint64_t size, int16_t *detpart, uint64_t period) {
+    if (period==8){  
+        // Here we double the detpart to use efficient SIMD
+        int16_t *detpart_twice = new int16_t [16];
+        for (int16_t i=0; i<16; i++){
+            detpart_twice[i] = detpart[i%8];
         }
+
+        deldet_16_int16(buffer, size, detpart_twice);  // Will use AVX2 or not according to platform
+
+        // handle left-over
+        for (uint64_t j = size-size%16; j < size; j++) {
+            buffer[j] -= detpart_twice[j%16];
+        }
+        delete [] detpart_twice;
+    }
+    else if (period==16){ // If period is a multiple of 16
+        deldet_16_int16(buffer, size, detpart);  // Will use AVX2 or not according to platform
+
         // handle left-over
         for (uint64_t i = size-size%16; i < size; i++) {
-            buffer[i] -= detpart[i%period];
+            buffer[i] -= detpart[i%16];
         }
     }
     else{
@@ -161,4 +144,23 @@ void deldet(int16_t *buffer, uint64_t size, int16_t *detpart, uint64_t period) {
         }
     }
 }
-*/
+
+__attribute__ ((target("avx2")))  // int16 specialization using AVX2
+void deldet_16_int16(int16_t *buffer, uint64_t size, int16_t *detpart) {
+    __m256i vec_detpart = _mm256_loadu_si256((__m256i*) detpart);
+    for (uint64_t i = 0; i < size-size%16; i+=16) {
+        // load 256-bit chunks of each array
+        __m256i vec_buffer = _mm256_loadu_si256((__m256i*) &buffer[i]);
+        // subs each pair of 16-bit integers in the 128-bit chunks
+        vec_buffer = _mm256_sub_epi16(vec_buffer, vec_detpart);
+        // store 256-bit chunk to first array
+        _mm256_storeu_si256((__m256i*) &buffer[i], vec_buffer);
+    }
+}
+
+__attribute__ ((target("default")))  // non-SIMD version
+void deldet_16_int16(int16_t *buffer, uint64_t size, int16_t *detpart) {
+    for (uint64_t i = 0; i < size; i+=16){
+        detsub_func(buffer + i, detpart, (uint64_t) 16);
+    }
+}

@@ -29,7 +29,7 @@
 #ifdef _WIN32_WINNT
     #include "mpreal.h"
 #else
-    #include <mpreal.h>
+    #include "mpreal.h"
 #endif
 
 
