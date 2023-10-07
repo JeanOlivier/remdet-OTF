@@ -16,5 +16,7 @@ template<typename T> void deldet(T *buffer, uint64_t size, T *detpart, uint64_t 
 // For T-specialized optimisations
 template<typename T> inline void detsum_func(T *buff, auto *detsum, uint64_t period);
 template<typename T> inline void detsub_func(T *buff, T *detpart, uint64_t period);
+// AVX2 specialization associated function
+void deldet_16_int16(int16_t *buffer, uint64_t size, int16_t *detpart);
 
 #endif // remdet_H
